@@ -4,3 +4,5 @@ __pycache__/
 .env
 .claude/
 .ipynb_checkpoints/
+# Environment example is safe to commit — no secrets
+!.env.example

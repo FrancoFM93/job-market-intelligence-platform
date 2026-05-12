@@ -1,0 +1,75 @@
+2026-05-11 23:36:12 | INFO     | __main__ | Starting ingestion pipeline
+2026-05-11 23:36:12 | INFO     | __main__ | Initializing database...
+2026-05-11 23:36:12 | DEBUG    | db.connection | Running init_db against localhost:5432/jobmarket
+2026-05-11 23:36:12 | INFO     | db.connection | Database tables verified / created.
+2026-05-11 23:36:12 | INFO     | __main__ | Fetching jobs from Adzuna API...
+2026-05-11 23:36:12 | INFO     | ingestion.api_client | Fetching role: data analyst
+2026-05-11 23:36:12 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/1 (role='data analyst', page=1)
+2026-05-11 23:36:14 | INFO     | ingestion.api_client |   [data analyst] page 1: 50 jobs fetched
+2026-05-11 23:36:15 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/2 (role='data analyst', page=2)
+2026-05-11 23:36:17 | INFO     | ingestion.api_client |   [data analyst] page 2: 50 jobs fetched
+2026-05-11 23:36:18 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/3 (role='data analyst', page=3)
+2026-05-11 23:36:20 | INFO     | ingestion.api_client |   [data analyst] page 3: 50 jobs fetched
+2026-05-11 23:36:20 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/4 (role='data analyst', page=4)
+2026-05-11 23:36:23 | INFO     | ingestion.api_client |   [data analyst] page 4: 50 jobs fetched
+2026-05-11 23:36:23 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/5 (role='data analyst', page=5)
+2026-05-11 23:36:25 | INFO     | ingestion.api_client |   [data analyst] page 5: 50 jobs fetched
+2026-05-11 23:36:27 | INFO     | ingestion.api_client | Fetching role: data scientist
+2026-05-11 23:36:27 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/1 (role='data scientist', page=1)
+2026-05-11 23:36:29 | INFO     | ingestion.api_client |   [data scientist] page 1: 50 jobs fetched
+2026-05-11 23:36:29 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/2 (role='data scientist', page=2)
+2026-05-11 23:36:31 | INFO     | ingestion.api_client |   [data scientist] page 2: 50 jobs fetched
+2026-05-11 23:36:32 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/3 (role='data scientist', page=3)
+2026-05-11 23:36:34 | INFO     | ingestion.api_client |   [data scientist] page 3: 50 jobs fetched
+2026-05-11 23:36:34 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/4 (role='data scientist', page=4)
+2026-05-11 23:36:37 | INFO     | ingestion.api_client |   [data scientist] page 4: 50 jobs fetched
+2026-05-11 23:36:37 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/5 (role='data scientist', page=5)
+2026-05-11 23:36:39 | INFO     | ingestion.api_client |   [data scientist] page 5: 50 jobs fetched
+2026-05-11 23:36:40 | INFO     | ingestion.api_client | Fetching role: business analyst
+2026-05-11 23:36:40 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/1 (role='business analyst', page=1)
+2026-05-11 23:36:43 | INFO     | ingestion.api_client |   [business analyst] page 1: 50 jobs fetched
+2026-05-11 23:36:43 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/2 (role='business analyst', page=2)
+2026-05-11 23:36:45 | INFO     | ingestion.api_client |   [business analyst] page 2: 50 jobs fetched
+2026-05-11 23:36:46 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/3 (role='business analyst', page=3)
+2026-05-11 23:36:48 | INFO     | ingestion.api_client |   [business analyst] page 3: 50 jobs fetched
+2026-05-11 23:36:48 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/4 (role='business analyst', page=4)
+2026-05-11 23:36:50 | INFO     | ingestion.api_client |   [business analyst] page 4: 50 jobs fetched
+2026-05-11 23:36:51 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/5 (role='business analyst', page=5)
+2026-05-11 23:36:53 | INFO     | ingestion.api_client |   [business analyst] page 5: 50 jobs fetched
+2026-05-11 23:36:54 | INFO     | ingestion.api_client | Fetching role: data engineer
+2026-05-11 23:36:54 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/1 (role='data engineer', page=1)
+2026-05-11 23:36:56 | INFO     | ingestion.api_client |   [data engineer] page 1: 50 jobs fetched
+2026-05-11 23:36:57 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/2 (role='data engineer', page=2)
+2026-05-11 23:36:59 | INFO     | ingestion.api_client |   [data engineer] page 2: 50 jobs fetched
+2026-05-11 23:36:59 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/3 (role='data engineer', page=3)
+2026-05-11 23:37:02 | INFO     | ingestion.api_client |   [data engineer] page 3: 50 jobs fetched
+2026-05-11 23:37:02 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/4 (role='data engineer', page=4)
+2026-05-11 23:37:05 | INFO     | ingestion.api_client |   [data engineer] page 4: 50 jobs fetched
+2026-05-11 23:37:06 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/5 (role='data engineer', page=5)
+2026-05-11 23:37:08 | INFO     | ingestion.api_client |   [data engineer] page 5: 50 jobs fetched
+2026-05-11 23:37:09 | INFO     | ingestion.api_client | Fetching role: machine learning engineer
+2026-05-11 23:37:09 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/1 (role='machine learning engineer', page=1)
+2026-05-11 23:37:12 | INFO     | ingestion.api_client |   [machine learning engineer] page 1: 50 jobs fetched
+2026-05-11 23:37:12 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/2 (role='machine learning engineer', page=2)
+2026-05-11 23:37:14 | INFO     | ingestion.api_client |   [machine learning engineer] page 2: 50 jobs fetched
+2026-05-11 23:37:15 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/3 (role='machine learning engineer', page=3)
+2026-05-11 23:37:17 | INFO     | ingestion.api_client |   [machine learning engineer] page 3: 50 jobs fetched
+2026-05-11 23:37:17 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/4 (role='machine learning engineer', page=4)
+2026-05-11 23:37:20 | INFO     | ingestion.api_client |   [machine learning engineer] page 4: 50 jobs fetched
+2026-05-11 23:37:20 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/5 (role='machine learning engineer', page=5)
+2026-05-11 23:37:22 | INFO     | ingestion.api_client |   [machine learning engineer] page 5: 50 jobs fetched
+2026-05-11 23:37:24 | INFO     | ingestion.api_client | Fetching role: analytics engineer
+2026-05-11 23:37:24 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/1 (role='analytics engineer', page=1)
+2026-05-11 23:37:26 | INFO     | ingestion.api_client |   [analytics engineer] page 1: 50 jobs fetched
+2026-05-11 23:37:27 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/2 (role='analytics engineer', page=2)
+2026-05-11 23:37:29 | INFO     | ingestion.api_client |   [analytics engineer] page 2: 50 jobs fetched
+2026-05-11 23:37:29 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/3 (role='analytics engineer', page=3)
+2026-05-11 23:37:31 | INFO     | ingestion.api_client |   [analytics engineer] page 3: 50 jobs fetched
+2026-05-11 23:37:32 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/4 (role='analytics engineer', page=4)
+2026-05-11 23:37:34 | INFO     | ingestion.api_client |   [analytics engineer] page 4: 50 jobs fetched
+2026-05-11 23:37:34 | DEBUG    | ingestion.api_client | GET https://api.adzuna.com/v1/api/jobs/us/search/5 (role='analytics engineer', page=5)
+2026-05-11 23:37:37 | INFO     | ingestion.api_client |   [analytics engineer] page 5: 50 jobs fetched
+2026-05-11 23:37:38 | INFO     | ingestion.api_client | Total jobs fetched across all roles: 1500
+2026-05-11 23:37:38 | INFO     | __main__ | Total records fetched from API: 1500
+2026-05-11 23:37:38 | INFO     | __main__ | Loading into database...
+2026-05-11 23:37:40 | INFO     | __main__ | Pipeline complete — inserted: 16 | skipped: 1484 | errors: 0

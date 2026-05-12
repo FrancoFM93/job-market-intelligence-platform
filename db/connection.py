@@ -1,10 +1,15 @@
+import logging
 import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+
 from db.models import Base
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
@@ -18,7 +23,8 @@ engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 
 
-def init_db():
+def init_db() -> None:
     """Create all tables if they don't exist."""
+    logger.debug("Running init_db against %s:%s/%s", DB_HOST, DB_PORT, DB_NAME)
     Base.metadata.create_all(engine)
-    print("Database tables created.")
+    logger.info("Database tables verified / created.")
