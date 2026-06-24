@@ -6,13 +6,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from db.models import Base
+from warehouse.warehouse_models import DimCompany
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_PORT = os.getenv("DB_PORT", "5433")
 DB_NAME = os.getenv("DB_NAME", "jobmarket")
 DB_USER = os.getenv("DB_USER", "jobmarket")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "jobmarket")

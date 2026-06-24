@@ -1,7 +1,5 @@
 """
 Centralised logging configuration for the Job Market Intelligence Platform.
-Import and call setup_logging() once at the entry point (pipeline.py).
-All other modules should use: logger = logging.getLogger(__name__)
 """
 import logging
 import sys

@@ -1,9 +1,5 @@
 """
 Main ingestion pipeline.
-Run this to fetch jobs from Adzuna and load them into the database.
-
-Usage:
-    python pipeline.py
 """
 import logging
 
