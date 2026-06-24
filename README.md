@@ -80,15 +80,15 @@ Edit `.env` with your values:
 
 ```env
 # Adzuna API — https://developer.adzuna.com
-ADZUNA_APP_ID=your_app_id
-ADZUNA_APP_KEY=your_app_key
+ADZUNA_APP_ID=app_id
+ADZUNA_APP_KEY=app_key
 
 # PostgreSQL
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=5433 *You have to double check in your machine
 DB_NAME=jobmarket
 DB_USER=jobmarket
-DB_PASSWORD=your_password
+DB_PASSWORD=jobmarket
 ```
 
 ### 3. Provision the database
