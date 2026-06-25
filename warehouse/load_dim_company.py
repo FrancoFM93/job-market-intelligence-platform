@@ -1,65 +1,39 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from db.connection import SessionLocal
 from db.models import JobListing
 from warehouse.warehouse_models import DimCompany
 
 
-def load_dim_company():
+def load_dim_company(session: Session) -> dict:
     """
-    Loads unique companies from the raw job_listings table
-    into the dim_company dimension table.
-
-    Returns:
-        dict: Mapping of company_name -> company_key
+    Loads unique companies from raw JobListing table into DimCompany.
+    Returns mapping: company_name -> company_key
     """
 
-    session: Session = SessionLocal()
+    print("Loading DimCompany...")
 
-    try:
-        print("Loading DimCompany...")
+    companies = session.execute(
+        select(JobListing.company).distinct()
+    ).scalars().all()
 
-        # 1. Extract distinct company names from raw table
-        companies = session.execute(
-            select(JobListing.company).distinct()
-        ).scalars().all()
+    companies = [c.strip() for c in companies if c]
 
-        # 2. Clean null or empty values
-        companies = [c for c in companies if c]
+    existing = {
+        row.company_name: row.company_key
+        for row in session.query(DimCompany).all()
+    }
 
-        company_mapping = {}
+    mapping = dict(existing)
 
-        for company_name in companies:
+    for company_name in companies:
+        if company_name in mapping:
+            continue
 
-            # 3. Check if company already exists in dimension
-            existing_company = session.execute(
-                select(DimCompany).where(DimCompany.company_name == company_name)
-            ).scalar_one_or_none()
+        dim = DimCompany(company_name=company_name)
+        session.add(dim)
+        session.flush()
 
-            # 4. If exists, reuse its key
-            if existing_company:
-                company_mapping[company_name] = existing_company.company_key
-                continue
+        mapping[company_name] = dim.company_key
 
-            # 5. Insert new dimension record
-            new_company = DimCompany(company_name=company_name)
-            session.add(new_company)
-
-            # Flush to get generated primary key without committing
-            session.flush()
-
-            company_mapping[company_name] = new_company.company_key
-
-        # 6. Commit all changes
-        session.commit()
-
-        print(f"DimCompany loaded successfully: {len(company_mapping)} records")
-
-        return company_mapping
-
-    except Exception as e:
-        session.rollback()
-        raise e
-
-    finally:
-        session.close()
+    print(f"DimCompany loaded: {len(mapping)}")
+    return mapping

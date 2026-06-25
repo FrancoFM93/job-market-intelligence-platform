@@ -5,14 +5,12 @@ from warehouse.warehouse_models import DimJob
 def load_dim_job(session: Session, job_data: dict) -> int:
     """
     Inserts or retrieves a job dimension record.
-    Returns job_key (surrogate key).
+    Returns job_key.
     """
 
-    # Normalize fields
     title = job_data["title"].strip().lower()
     company_key = job_data.get("company_key")
 
-    # Check existence (define grain properly)
     existing = (
         session.query(DimJob)
         .filter(
@@ -39,6 +37,6 @@ def load_dim_job(session: Session, job_data: dict) -> int:
     )
 
     session.add(job)
-    session.flush() 
+    session.flush()
 
     return job.job_key

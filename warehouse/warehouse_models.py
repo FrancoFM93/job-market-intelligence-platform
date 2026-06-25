@@ -25,7 +25,7 @@ class DimJob(Base):
 
     title = Column(String, nullable=False)
     category = Column(String)
-    
+
     contract_type = Column(String)
     contract_time = Column(String)
 
@@ -36,3 +36,18 @@ class DimJob(Base):
     salary_max = Column(Float)
 
     created_at = Column(DateTime)
+
+
+class DimDate(Base):
+    __tablename__ = "dim_date"
+
+    date_key = Column(Integer, primary_key=True)  # YYYYMMDD format
+
+    full_date = Column(Date, nullable=False)
+
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    day = Column(Integer, nullable=False)
+
+    weekday = Column(String, nullable=False)
+    month_name = Column(String, nullable=False)

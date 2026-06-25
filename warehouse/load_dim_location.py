@@ -9,10 +9,9 @@ def load_dim_location(
 ) -> int:
     """
     Inserts or retrieves a location dimension record.
-    Returns location_key (surrogate key).
+    Returns location_key.
     """
 
-    # Check if already exists (avoid duplicates)
     existing = (
         session.query(DimLocation)
         .filter_by(
@@ -25,14 +24,12 @@ def load_dim_location(
     if existing:
         return existing.location_key
 
-    # Create new record
     location = DimLocation(
         location_display=location_display,
         location_area=location_area
     )
 
     session.add(location)
-    session.commit()
-    session.refresh(location)
+    session.flush()
 
     return location.location_key
