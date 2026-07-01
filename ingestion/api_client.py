@@ -29,7 +29,7 @@ def fetch_jobs(role: str, page: int = 1) -> dict:
     """Fetch one page of job listings for a given role."""
     if not APP_ID or not APP_KEY:
         raise EnvironmentError(
-            "ADZUNA_APP_ID and ADZUNA_APP_KEY must be set in your .env file."
+            "MEMO!!! ADZUNA_APP_ID and ADZUNA_APP_KEY must be set in your .env file."
         )
 
     params = {

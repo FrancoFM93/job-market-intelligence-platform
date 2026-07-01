@@ -21,21 +21,13 @@ class DimLocation(Base):
 class DimJob(Base):
     __tablename__ = "dim_job"
 
-    job_key = Column(Integer, primary_key=True, autoincrement=True)
+    job_key = Column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
 
     title = Column(String, nullable=False)
-    category = Column(String)
-
-    contract_type = Column(String)
-    contract_time = Column(String)
-
-    location_display = Column(String)
-    location_area = Column(String)
-
-    salary_min = Column(Float)
-    salary_max = Column(Float)
-
-    created_at = Column(DateTime)
 
 
 class DimDate(Base):
