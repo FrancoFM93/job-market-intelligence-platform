@@ -1,18 +1,31 @@
 # Job Market Intelligence Platform
 
-An end-to-end data pipeline that ingests US job listings from the Adzuna API, stores them in PostgreSQL, and analyzes the market for data-focused roles with a particular emphasis on remote opportunities relevant to international applicants.
+An end-to-end Data Engineering project that ingests US job listings from the Adzuna API, stores raw data in PostgreSQL, transforms it into a dimensional data warehouse, and exposes analytics-ready datasets for labor market intelligence.
 
 **Core business question:** *What does the current US job market look like for data professionals, and which opportunities are realistically accessible to remote-first candidates?*
 
 ---
 
+## Data Engineering Highlights
+
+* Built an end-to-end ETL pipeline using Python and SQLAlchemy.
+* Automated ingestion of job market data from the Adzuna REST API.
+* Designed and implemented a dimensional data warehouse using a Star Schema.
+* Created fact and dimension tables with surrogate keys.
+* Applied data transformation and normalization processes during ingestion.
+* Implemented duplicate detection and data quality controls.
+* Structured the project using layered architecture (Raw → Warehouse → Analytics).
+* Prepared analytics-ready datasets for dashboards, reporting, and exploratory analysis.
+
+---
+
 ## Key Findings
 
-| Area | Finding |
-|---|---|
-| **Top skills to prioritize** | SQL, Machine Learning, GCP |
-| **Expected remote salary** | ~$93,000 USD / year |
-| **Remote share of market** | ~20% of total US listings |
+| Area                                 | Finding                                       |
+| ------------------------------------ | --------------------------------------------- |
+| **Top skills to prioritize**         | SQL, Machine Learning, GCP                    |
+| **Expected remote salary**           | ~$93,000 USD / year                           |
+| **Remote share of market**           | ~20% of total US listings                     |
 | **Best roles for remote applicants** | Data Engineer, Data Analyst, Business Analyst |
 
 > **Note on remote data:** Job postings that do not specify an explicit location are classified as remote in the source data, which may inflate this figure slightly. The ~20% estimate should be interpreted as an upper bound.
@@ -21,42 +34,76 @@ An end-to-end data pipeline that ingests US job listings from the Adzuna API, st
 
 ## What This Project Covers
 
-- **Skill demand analysis** - most requested tools and technologies by role.
-- **Salary benchmarking** - compensation ranges by title, seniority, and work arrangement.
-- **Remote opportunity mapping** - share of remote roles by title and location.
-- **Top hiring companies and industries**
-- **Role targeting for international applicants** - identifying which roles have the highest density of fully remote postings.
+* **Skill demand analysis** - Most requested tools and technologies by role.
+* **Salary benchmarking** - Compensation ranges by title, seniority, and work arrangement.
+* **Remote opportunity mapping** - Share of remote roles by title and location.
+* **Hiring trends analysis** - Companies and job categories with the highest demand.
+* **Role targeting for international applicants** - Identifying which roles have the highest density of remote opportunities.
+* **Dimensional modeling** - Building analytics-ready structures for business intelligence workloads.
 
 ---
 
 ## Architecture
 
-```
+```text
 Adzuna API
     │
     ▼
-ingestion/api_client.py       ← Fetches paginated job listings
+Raw Layer (job_listings)
     │
     ▼
-processing/transform.py       ← Parses and normalises raw API data
+Transformation Layer
     │
     ▼
-PostgreSQL (job_listings)     ← Persistent storage via SQLAlchemy
+Data Warehouse
+    ├── dim_company
+    ├── dim_job
+    ├── dim_location
+    ├── dim_date
+    └── fact_job_listing
     │
     ▼
-notebooks/                    ← Analysis and visualisation (Jupyter)
+Analytics Layer
+    ├── SQL Views
+    ├── Dashboards
+    └── Business Intelligence
 ```
 
 ---
 
-## Stack
+## Data Warehouse Design
 
-| Layer | Technology |
-|---|---|
-| Ingestion | Python · Adzuna REST API |
-| Storage | PostgreSQL 16 · SQLAlchemy ORM |
-| Processing | Pandas · pg8000 |
-| Analysis | Jupyter Lab · Matplotlib · Seaborn · Plotly |
+### Fact Table
+
+| Table            | Grain                                                |
+| ---------------- | ---------------------------------------------------- |
+| fact_job_listing | One row per unique job posting collected from Adzuna |
+
+### Dimensions
+
+| Dimension    | Purpose                            |
+| ------------ | ---------------------------------- |
+| dim_company  | Hiring companies                   |
+| dim_job      | Job attributes and classifications |
+| dim_location | Geographic information             |
+| dim_date     | Time-based analysis                |
+
+The warehouse follows a Star Schema design optimized for analytical workloads and business intelligence reporting.
+
+---
+
+## Technology Stack
+
+| Layer           | Technology                              |
+| --------------- | --------------------------------------- |
+| Ingestion       | Python · Adzuna REST API                |
+| Data Modeling   | SQLAlchemy ORM                          |
+| Storage         | PostgreSQL                              |
+| Data Warehouse  | Star Schema · Fact & Dimension Modeling |
+| Processing      | Pandas                                  |
+| Analytics       | SQL · Jupyter                           |
+| Infrastructure  | Docker                                  |
+| Version Control | Git · GitHub                            |
 
 ---
 
@@ -65,12 +112,14 @@ notebooks/                    ← Analysis and visualisation (Jupyter)
 ### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/your-username/job-market-intelligence-platform.git
+git clone https://github.com/FrancoFM93/job-market-intelligence-platform.git
 cd job-market-intelligence-platform
 pip install -r requirements.txt
 ```
 
 ### 2. Configure credentials
+
+Create a `.env` file:
 
 ```bash
 cp .env.example .env
@@ -79,9 +128,15 @@ cp .env.example .env
 Edit `.env` with your values:
 
 ```env
+<<<<<<< Updated upstream
 # Adzuna API — https://developer.adzuna.com
 ADZUNA_APP_ID=app_id
 ADZUNA_APP_KEY=app_key
+=======
+# Adzuna API
+ADZUNA_APP_ID=your_app_id
+ADZUNA_APP_KEY=your_app_key
+>>>>>>> Stashed changes
 
 # PostgreSQL
 DB_HOST=localhost
@@ -93,7 +148,7 @@ DB_PASSWORD=jobmarket
 
 ### 3. Provision the database
 
-Make sure PostgreSQL is running, then create the user and database:
+Make sure PostgreSQL is running and create the required database:
 
 ```sql
 CREATE USER jobmarket WITH PASSWORD 'your_password';
@@ -107,9 +162,15 @@ GRANT ALL PRIVILEGES ON DATABASE jobmarket TO jobmarket;
 python pipeline.py
 ```
 
-This will create the schema on first run, fetch listings from the Adzuna API, and load them into the database. Duplicate records are skipped automatically.
+The pipeline will:
 
-### 5. Open the analysis notebooks
+* Create the database schema if it does not exist.
+* Fetch job listings from the Adzuna API.
+* Transform and normalize raw records.
+* Populate the warehouse dimensions and fact tables.
+* Skip duplicate records automatically.
+
+### 5. Explore the data
 
 ```bash
 jupyter lab notebooks/
@@ -119,53 +180,92 @@ jupyter lab notebooks/
 
 ## Project Structure
 
-```
+```text
 job-market-intelligence-platform/
 ├── db/
-│   ├── connection.py       # SQLAlchemy engine, session, and init_db()
-│   ├── models.py           # ORM models
+│   ├── connection.py
+│   ├── models.py
 │   └── __init__.py
+│
 ├── ingestion/
-│   ├── api_client.py       # Adzuna API client
+│   ├── api_client.py
 │   └── __init__.py
+│
 ├── processing/
-│   ├── transform.py        # Data parsing and normalisation
+│   ├── transform.py
 │   └── __init__.py
+│
+├── warehouse/
+│   ├── warehouse_models.py
+│   ├── fact_models.py
+│   ├── load_dim_company.py
+│   ├── load_dim_job.py
+│   ├── load_dim_location.py
+│   ├── load_dim_date.py
+│   └── load_fact_job_listing.py
+│
 ├── notebooks/
-│   └── 01_eda.ipynb        # Exploratory data analysis
-├── app/                    # Application modules
-├── config/                 # Configuration files
-├── dashboard/              # Dashboard assets
-├── tests/                  # Test suite
-├── pipeline.py             # Main ingestion entry point
-├── docker-compose.yml      # Optional: containerised Postgres
+│   └── 01_eda.ipynb
+│
+├── tests/
+│
+├── pipeline.py
+├── docker-compose.yml
 ├── requirements.txt
 ├── GUIDE.md
-└── .env                    # Local credentials (not committed)
+└── .env
 ```
 
 ---
 
 ## Reproducing the Analysis
 
-The pipeline targets **Data Analyst**, **Data Scientist**, **Data Engineer**, and **Business Analyst** roles across the United States. To replicate:
+The pipeline currently targets the following job families:
+
+* Data Analyst
+* Data Scientist
+* Data Engineer
+* Business Analyst
+* Analytics Engineer
+* Machine Learning Engineer
+
+To reproduce the analysis:
 
 1. Complete the setup steps above.
-2. Run `python pipeline.py` - fetches up to 5 pages per role by default. Adjust with `run(max_pages_per_role=N)`.
-3. Open the notebooks in order and execute all cells.
+2. Run:
 
-Data freshness depends on when the pipeline was last run. Re-run at any time to pull the latest listings.
+```bash
+python pipeline.py
+```
+
+3. Open the notebooks and execute all cells.
+
+Data freshness depends on when the pipeline was last executed. Re-running the pipeline pulls the latest available listings from the source API.
+
+---
+
+## Future Improvements
+
+* Work arrangement dimension (Remote / Hybrid / On-site).
+* Analytics views and semantic layer.
+* Dashboard implementation with Streamlit or Power BI.
+* Orchestration with Apache Airflow.
+* Cloud deployment on AWS.
+* CI/CD pipeline with GitHub Actions.
+* Automated data quality testing.
 
 ---
 
 ## Notes for International Applicants
 
-This project was built with a specific lens: identifying **remote-first** opportunities in the US market that are accessible to candidates based outside the country.
+This project was originally built with a specific lens: identifying remote-first opportunities in the US market that may be accessible to candidates based outside the country.
 
-- Remote roles represent roughly **20% of total listings**, a meaningful but competitive segment.
-- **Data Engineer, Data Analyst, and Business Analyst** roles have the highest share of fully remote postings among the titles analysed.
-- Target salary for a fully remote position is approximately **$93,000 USD/year** based on current market data.
-- Skills with the strongest signal across remote job descriptions: **SQL**, **Machine Learning**, and **GCP**.
+Key observations from the current dataset:
+
+* Remote roles represent roughly **20% of total listings**.
+* **Data Engineer**, **Data Analyst**, and **Business Analyst** roles currently show the strongest remote presence.
+* Average remote compensation is approximately **$93,000 USD per year**.
+* The strongest recurring skill signals are **SQL**, **Machine Learning**, and **Google Cloud Platform (GCP)**.
 
 ---
 
