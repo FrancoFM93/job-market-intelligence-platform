@@ -7,6 +7,9 @@ from sqlalchemy.orm import sessionmaker
 
 from db.models import Base
 
+from warehouse.warehouse_models import (DimCompany, DimJob, DimLocation, DimDate,)
+from warehouse.fact_models import FactJobListing
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
