@@ -15,8 +15,6 @@ class FactJobListing(Base):
     salary_min = Column(Float)
     salary_max = Column(Float)
 
-    contract_type = Column(String)
-    contract_time = Column(String)
 
 
 
