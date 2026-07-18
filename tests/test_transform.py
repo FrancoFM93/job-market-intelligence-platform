@@ -1,10 +1,12 @@
+import pytest
+
 from processing.transform import parse_job
 
 
 def test_parse_job_success(sample_raw_job):
     job = parse_job(sample_raw_job)
 
-    assert job.id == "123"
+    assert job.source_listing_id == "123"
     assert job.title == "Data Engineer"
     assert job.company == "OpenAI"
     assert job.location_area == "San Francisco"
@@ -52,3 +54,8 @@ def test_parse_job_salary_conversion(sample_raw_job):
 
     assert isinstance(job.salary_min, float)
     assert isinstance(job.salary_max, float)
+
+
+def test_parse_job_rejects_missing_source_listing_id():
+    with pytest.raises(ValueError, match="required Adzuna source ID"):
+        parse_job({"title": "Data Engineer"})

@@ -10,37 +10,23 @@ from db.connection import init_db, SessionLocal
 
 from ingestion.api_client import fetch_all_roles
 from processing.transform import parse_job
-
-# Warehouse loaders
-from warehouse.load_dim_company import load_dim_company
-from warehouse.load_dim_job import load_dim_job
-from warehouse.load_dim_location import load_dim_location
-from warehouse.load_dim_date import load_dim_date
-from warehouse.load_fact_job_listing import load_fact_job_listing
-
-
 logger = logging.getLogger(__name__)
 
 
 def run(max_pages_per_role: int = 5) -> None:
     logger.info("Starting ingestion pipeline")
 
-    # -------------------------
-    # INIT DB
-    # -------------------------
     logger.info("Initializing database...")
     init_db()
 
-    # -------------------------
-    # FETCH RAW DATA
-    # -------------------------
     logger.info("Fetching jobs from Adzuna API...")
-    raw_jobs = fetch_all_roles(max_pages_per_role=max_pages_per_role)
-    logger.info("Total records fetched from API: %d", len(raw_jobs))
+    raw_jobs = fetch_all_roles(max_pages_per_role = max_pages_per_role)
 
-    # -------------------------
-    # DB SESSION
-    # -------------------------
+    logger.info(
+        "Total records fetched from API: %d",
+        len(raw_jobs)
+    )
+
     session = SessionLocal()
 
     inserted = 0

@@ -83,8 +83,8 @@ The active ingestion flow is implemented by `run()` in [`pipeline.py`](../pipeli
 3. `fetch_all_jobs()` requests up to five pages for each role by default.
 4. Each returned dictionary is tagged with the search role that produced it.
 5. `parse_job()` creates a `JobListing` ORM object.
-6. Records without an ID are skipped.
-7. `session.get()` checks whether that Adzuna ID already exists.
+6. Records without an Adzuna ID are rejected during parsing and logged by the pipeline.
+7. `session.get()` checks whether that `source_listing_id` already exists.
 8. New objects are added to one SQLAlchemy session.
 9. One commit persists the batch; an unhandled load error rolls the batch back.
 
@@ -211,7 +211,7 @@ Pagination stops when the configured maximum is reached, when a page contains no
 
 Each result is modified to include `search_role`. This makes it possible to know which configured query returned the listing.
 
-**Known problem:** a listing may match more than one search role. Because `job_listings.id` is the primary key and existing records are skipped, only the first stored search role is retained.
+**Known problem:** a listing may match more than one search role. Because `job_listings.source_listing_id` is the primary key and existing records are skipped, only the first stored search role is retained.
 
 **Planned improvement: To be completed.** Introduce bounded retry/backoff for transient failures, report partial extraction explicitly, and decide how multiple search-role matches should be modeled.
 
@@ -253,45 +253,60 @@ The warehouse is an initial star-schema design. A star schema places measurable 
 | `dim_job` | One normalized job title found by the loader | `job_key` surrogate key |
 | `dim_location` | Display location and area combination | `location_key` surrogate key |
 | `dim_date` | Posting calendar attributes | `date_key` in `YYYYMMDD` form |
-| `fact_job_listing` | Dimension references and salary range | `fact_id` surrogate key |
+| `fact_job_listing` | One current Adzuna listing with dimension references and salary range | `fact_id` surrogate key; unique `source_listing_id` business key |
 
 A surrogate key is a warehouse-generated identifier with no source-system meaning. It allows facts to reference dimension rows independently of changing source text. `dim_date.date_key` is a meaningful integer rather than an auto-generated key, which is a common date-dimension convention.
+
+The official fact grain at this stage is:
+
+> One row in `fact_job_listing` represents one unique Adzuna job listing currently stored by the platform.
+
+`fact_id` and `source_listing_id` serve different purposes. `fact_id` is the warehouse surrogate primary key: it identifies the physical warehouse row. `source_listing_id` is the business key supplied by Adzuna: it identifies which real source listing the row represents. Company, job, location, and date keys remain foreign keys that describe the listing; they do not define its identity.
+
+The Adzuna ID is persisted as `job_listings.source_listing_id`, forwarded by the warehouse builder, and stored as the required `fact_job_listing.source_listing_id`. PostgreSQL enforces a named unique constraint on the fact business key. Application checks are useful, but the database constraint is the final protection against two fact rows claiming to represent the same listing.
+
+Title, company, location, and posting date cannot safely form a business key. A company may advertise multiple genuinely distinct roles with the same title, location, and date, and those listings must remain separate.
 
 Dimension loaders perform a lookup before inserting. They call `session.flush()` so database-generated keys are available immediately without committing the overall transaction. Company values are trimmed, and job titles are trimmed and converted to lowercase by their loaders.
 
 ### How to explain this in an interview
 
-> I started a star schema so analytical measures such as salary can be filtered by company, title, location, and posting date. The descriptive dimensions use warehouse keys, while the date dimension uses a predictable `YYYYMMDD` key. The model is still an initial version: its business grain and uniqueness constraints need to be strengthened before I treat it as analytics-ready.
+> I defined the fact grain as one row per unique current Adzuna listing. The warehouse keeps `fact_id` as its surrogate primary key, while `source_listing_id` carries the source-system business identity and has a PostgreSQL uniqueness constraint. Dimension keys describe the listing but do not identify it, because different listings can legitimately share the same title, company, location, and date.
 
 ## 10. Current warehouse limitations
 
-The most important warehouse concept is the **grain**: the exact real-world event represented by one fact row. The intended grain appears to be one Adzuna job listing, but the fact table does not store the Adzuna listing ID. Its enforced grain is therefore only one row per loader call.
+The most important warehouse concept is the **grain**: the exact real-world event represented by one fact row. The current-state grain is now explicit and protected by the unique Adzuna business key. This does not yet make the warehouse loader safely rerunnable.
 
 Confirmed limitations include:
 
-- each warehouse run inserts another fact for every source row;
-- `fact_job_listing` has no source-listing key or business uniqueness constraint;
+- a second warehouse run attempts to insert the same business keys and will fail on the unique constraint rather than silently duplicate facts;
 - all fact foreign keys are nullable;
 - `dim_job.title` has no database uniqueness constraint;
 - `dim_location` has no uniqueness constraint for its identifying attributes;
 - `build_warehouse()` assumes `job.title`, `job.location_display`, and `job.created` are usable even though the source model permits missing location and date values;
 - salary values use floating-point columns;
 - the fact does not retain salary prediction status, contract attributes, source category, or search-role information;
-- the warehouse does not preserve listing snapshots or changes over time.
+- the warehouse represents current listings and does not preserve listing snapshots or changes over time.
 
 Loader-side lookup checks help in a single process, but database constraints are still needed to enforce identity when code changes or concurrent writers exist.
 
-**Planned improvement: To be completed.** Define the fact grain first, add a source-listing or snapshot business key, enforce natural-key uniqueness for dimensions, establish an unknown-member policy, and test two consecutive warehouse builds.
+Records without a source ID are rejected by `parse_job()` with a clear validation error. The pipeline logs that parse failure and does not persist the record. The fact loader performs the same validation defensively. The project does not generate identity from unstable descriptive fields.
+
+`Base.metadata.create_all()` will not rename the existing `job_listings.id` column or add the new fact column and constraint to tables that already exist. Because old fact rows contain no reliable source ID to backfill, the safest practical development approach is to back up anything important, recreate the local development database, rerun ingestion, and then build the warehouse once. No schema reset is performed automatically by the project or this walkthrough.
+
+**Planned improvement: To be completed.** Add conflict-aware fact loading and a PostgreSQL integration test that runs the warehouse twice. Also enforce natural-key uniqueness for dimensions and establish an unknown-member policy.
+
+The current-state design keeps at most one fact for each Adzuna ID. A future snapshot design would use a different grain, such as one row per `(source_listing_id, observation_date)` or ingestion run, so the same listing could appear intentionally at multiple points in time. Snapshot history is not implemented in the current model.
 
 **Production-scale alternative:** at larger scale, set-based SQL transformations, bulk upserts, partitioned facts, incremental watermarks, or a transformation framework could replace row-by-row ORM loading. The correct choice depends on volume and operational requirements.
 
 ### How to explain this in an interview
 
-> The current warehouse is a learning-stage star schema, not a finished production model. Its biggest limitation is that the fact grain is not enforced because the source listing ID is absent, so rerunning the builder duplicates facts. My next warehouse task is to define whether the fact represents one current listing or one listing snapshot, enforce that key in PostgreSQL, and prove idempotency with an integration test.
+> The current fact grain is one unique current Adzuna listing. I retain a warehouse surrogate `fact_id`, but I also store Adzuna's ID as `source_listing_id` and enforce it as unique in PostgreSQL. That prevents silent duplicate facts. The loader still needs conflict handling so a rerun succeeds instead of failing, and a future snapshot warehouse would deliberately use a different composite grain.
 
 ## 11. Testing strategy
 
-The current pytest suite contains 19 tests covering:
+The current pytest suite contains 26 tests covering:
 
 - construction and representation of a `JobListing` Python object;
 - successful transformation and selected missing or malformed fields;
@@ -302,7 +317,9 @@ The current pytest suite contains 19 tests covering:
 - expected pagination pacing without performing real waits;
 - the missing-credential guard;
 - database configuration defaults and environment overrides;
-- SQLAlchemy URL construction, numeric port conversion, and safe secret representation.
+- SQLAlchemy URL construction, numeric port conversion, and safe secret representation;
+- source-listing parsing, persistence, fact propagation, and missing-ID rejection;
+- fact business-key uniqueness and preservation of dimension foreign keys.
 
 The tests are currently unit-style tests. They do not connect to PostgreSQL and do not verify table creation, database constraints, transactions, warehouse loaders, or end-to-end behavior. `test_job_listing_creation()` verifies Python attribute assignment, not database persistence.
 
@@ -316,7 +333,7 @@ The current suite was most recently run with:
 py -m pytest -q -p no:cacheprovider
 ```
 
-and completed with 19 passing tests in the inspected environment.
+and completed with 26 passing tests in the inspected environment.
 
 **Planned improvement: To be completed.** Add warehouse unit tests and PostgreSQL integration tests for constraints, rollback, upsert behavior, and rerun counts.
 
@@ -456,19 +473,19 @@ The pipeline logs major stages and final inserted, skipped, and error counts. AP
 
 An idempotent operation can be repeated with the same input without creating additional unintended results.
 
-Raw ingestion uses the Adzuna ID as the `job_listings` primary key. Before adding a listing, the pipeline checks for that ID and skips it if present. This prevents duplicate raw rows during ordinary sequential reruns.
+Raw ingestion uses the Adzuna ID as the `job_listings.source_listing_id` primary key. Before adding a listing, the pipeline checks for that ID and skips it if present. This prevents duplicate source rows during ordinary sequential reruns.
 
 This is insert-only deduplication, not a true upsert. An **upsert** inserts a missing row and updates an existing row. The current pipeline does not refresh changed salaries, descriptions, titles, or last-seen times.
 
-Warehouse loading is not idempotent. `fact_job_listing` contains no source ID or uniqueness rule, and `load_fact_job_listing()` always creates a new row. Repeating `build_warehouse()` therefore repeats facts.
+Warehouse loading is not yet idempotent. `fact_job_listing.source_listing_id` is unique, so PostgreSQL prevents duplicate facts, but `load_fact_job_listing()` still always attempts an insert. Repeating `build_warehouse()` therefore raises a uniqueness error instead of completing successfully.
 
 Loader-side dimension lookups reduce duplicates in a single sequential process, but missing database uniqueness constraints still leave some dimensions unprotected.
 
-**Planned improvement: To be completed.** Decide whether the fact represents one current source listing or one listing observation, enforce the matching business key in PostgreSQL, and test that two identical runs produce the intended counts.
+**Planned improvement: To be completed.** Add conflict-aware current-state fact loading and test that two identical warehouse runs complete with unchanged fact counts.
 
 ### How to explain this in an interview
 
-> Raw ingestion currently prevents duplicate IDs by skipping listings already stored, but that is not a complete upsert because changed source attributes are not updated. The warehouse is not yet idempotent because facts lack a source business key. I would define the fact grain, enforce it with a database constraint, and prove rerun safety through an integration test.
+> Raw ingestion prevents duplicate source IDs but does not update changed listings. The fact table now has the same source business identity and PostgreSQL prevents duplicate facts. That establishes correctness of the grain, but idempotency also requires the second run to succeed, so the next step is conflict-aware loading plus a two-run integration test.
 
 ## 17. Analytics layer
 
@@ -512,11 +529,10 @@ Technical debt means a known design or implementation limitation that should be 
 
 ### Highest priority
 
-1. Define and enforce the fact-table grain.
-2. Make warehouse builds idempotent.
-3. Handle missing source fields consistently during warehouse loading.
-4. Add PostgreSQL integration tests for constraints, transactions, and reruns.
-5. Provide one reliable end-to-end execution path.
+1. Make warehouse builds idempotent.
+2. Handle other missing source fields consistently during warehouse loading.
+3. Add PostgreSQL integration tests for constraints, transactions, and reruns.
+4. Provide one reliable end-to-end execution path.
 
 ### Next priority
 
@@ -548,7 +564,7 @@ The answers below are short starting points. They should be adapted to the exact
 
 ### How to explain the project end to end
 
-> The project fetches job listings from Adzuna for six data-related search roles. A Python client handles requests and pagination, a transform function maps nested JSON into a SQLAlchemy listing model, and the ingestion entry point writes new IDs to PostgreSQL in one transaction. A separate warehouse builder maps the listings into company, job, location, and date dimensions plus a salary fact. The warehouse is an active area of improvement because its fact grain is not yet enforced and reruns currently duplicate facts.
+> The project fetches job listings from Adzuna for six data-related search roles. A Python client handles requests and pagination, a transform function maps nested JSON into a SQLAlchemy listing model, and the ingestion entry point writes source IDs to PostgreSQL in one transaction. A separate warehouse builder maps the listings into company, job, location, and date dimensions plus a salary fact. The fact grain is one current Adzuna listing and is protected by a unique source business key, although rerun conflict handling is still planned.
 
 ### How to explain ETL versus the current design
 
@@ -556,7 +572,7 @@ The answers below are short starting points. They should be adapted to the exact
 
 ### How to explain the star schema
 
-> A star schema separates measurable events from descriptive attributes. The current fact stores salary values and references company, job title, location, and date dimensions. This structure is useful for BI filtering and grouping, but a fact table is only trustworthy when its grain is explicit. My current fact needs the source listing identity or a snapshot key before it is safe to aggregate.
+> A star schema separates measurable events from descriptive attributes. The current fact stores salary values and references company, job title, location, and date dimensions. Its grain is one current Adzuna listing, identified by a unique `source_listing_id`. `fact_id` remains a surrogate warehouse key, while dimension foreign keys provide descriptive context rather than business identity.
 
 ### How to explain surrogate and natural keys
 
@@ -568,7 +584,7 @@ The answers below are short starting points. They should be adapted to the exact
 
 ### How to explain idempotency honestly
 
-> The source table prevents duplicate IDs during sequential reruns, but existing rows are skipped rather than updated. The warehouse is not idempotent yet because each run appends another fact. I have identified the required solution: define the grain, enforce a business key in PostgreSQL, use an upsert or checked insert, and add a rerun integration test.
+> The source table prevents duplicate IDs during sequential reruns, but existing rows are skipped rather than updated. PostgreSQL now also prevents duplicate fact business keys. The warehouse is still not idempotent because a repeated insert fails rather than becoming a no-op or update, so conflict handling and a rerun integration test remain necessary.
 
 ### How to explain testing honestly
 
@@ -580,7 +596,7 @@ The answers below are short starting points. They should be adapted to the exact
 
 ### How to discuss unfinished work
 
-> I treat unfinished areas as explicit engineering work rather than hiding them. The strongest implemented path is API-to-PostgreSQL ingestion with unit tests around transformation and mocked HTTP behavior. The warehouse model exists, but its grain, constraints, rerun safety, analytics consumers, and integration tests are the next priorities. That gives me a concrete roadmap based on correctness before adding cloud or orchestration tools.
+> I treat unfinished areas as explicit engineering work rather than hiding them. The API-to-PostgreSQL path has unit tests around transformation and mocked HTTP behavior, and the warehouse now has an explicit source business key and enforced current-state grain. Rerun handling, broader warehouse constraints, analytics consumers, and PostgreSQL integration tests are still priorities before adding cloud or orchestration tools.
 
 ## Appendix: confirmed current commands
 
