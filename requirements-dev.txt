@@ -1,0 +1,6 @@
+requests==2.33.1
+python-dotenv==1.2.2
+sqlalchemy==2.0.40
+
+pytest==8.4.1
+pytest-mock==3.14.1
