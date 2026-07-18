@@ -205,21 +205,21 @@ This avoids the common problem of defining multiple declarative bases or calling
 
 The client sends credentials and query parameters through `requests.get()`, uses a ten-second timeout, raises for non-successful HTTP status codes, and parses the JSON response. A timeout prevents a request from waiting forever.
 
+`fetch_jobs()` accepts optional keyword-only `app_id` and `app_key` arguments. When an argument is omitted, the function reads the matching environment variable at call time. Normal local execution can therefore continue to use values loaded from `.env`, while tests can pass explicit dummy credentials without depending on the developer's machine. `fetch_all_jobs()` and `fetch_all_roles()` accept and forward the same optional values. If either resolved credential is missing, the client raises a clear error before making an HTTP request. Credential values are not included in logs or error messages.
+
 Pagination stops when the configured maximum is reached, when a page contains no results, or when a request error occurs. Short sleeps are used between pages and roles. This is a simple form of request pacing; it is not a complete retry or rate-limit strategy.
 
 Each result is modified to include `search_role`. This makes it possible to know which configured query returned the listing.
 
-**Known problem:** credentials are read into module-level constants at import time. This makes configuration harder to change during a process and makes tests dependent on environment state unless the constants are patched.
-
 **Known problem:** a listing may match more than one search role. Because `job_listings.id` is the primary key and existing records are skipped, only the first stored search role is retained.
 
-**Planned improvement: To be completed.** Make client configuration injectable, introduce bounded retry/backoff for transient failures, report partial extraction explicitly, and decide how multiple search-role matches should be modeled.
+**Planned improvement: To be completed.** Introduce bounded retry/backoff for transient failures, report partial extraction explicitly, and decide how multiple search-role matches should be modeled.
 
 **Production-scale alternative:** a larger ingestion service might use durable queues, centralized rate-limit handling, and checkpointed page state. Those mechanisms would be justified by higher volume or stronger recovery requirements; they are unnecessary for the present API volume.
 
 ### How to explain this in an interview
 
-> I separated a single API request from pagination and from looping over search roles. That keeps each level understandable and testable. I use a timeout and basic request pacing, but the current client does not yet retry transient errors or persist extraction checkpoints. At this scale, a small synchronous client is appropriate, and I would add operational complexity only when the failure and volume requirements justify it.
+> I separated a single API request from pagination and from looping over search roles. Credentials can be passed explicitly, which makes tests independent of my local `.env`, while omitted values still resolve from the environment for normal execution. I use a timeout and basic request pacing, but the current client does not yet retry transient errors or persist extraction checkpoints. At this scale, a small synchronous client is appropriate, and I would add operational complexity only when the failure and volume requirements justify it.
 
 ## 8. Transformation and loading
 
@@ -291,18 +291,22 @@ Loader-side lookup checks help in a single process, but database constraints are
 
 ## 11. Testing strategy
 
-The current pytest suite contains 12 tests covering:
+The current pytest suite contains 13 tests covering:
 
 - construction and representation of a `JobListing` Python object;
 - successful transformation and selected missing or malformed fields;
 - salary conversion;
 - API response handling through mocked HTTP calls;
 - pagination stopping and collection behavior;
+- correct request parameters, including explicitly injected dummy credentials;
+- expected pagination pacing without performing real waits;
 - the missing-credential guard.
 
 The tests are currently unit-style tests. They do not connect to PostgreSQL and do not verify table creation, database constraints, transactions, warehouse loaders, or end-to-end behavior. `test_job_listing_creation()` verifies Python attribute assignment, not database persistence.
 
-Mocking `requests.get()` is appropriate because unit tests should not depend on Adzuna availability, consume rate limits, or require network access. The `mocker` fixture comes from `pytest-mock`.
+Mocking `requests.get()` is appropriate because unit tests should not depend on Adzuna availability, consume rate limits, or require network access. Every API test either mocks `requests.get()` directly or mocks `fetch_jobs()` at the pagination boundary, so the suite cannot reach Adzuna. The `mocker` fixture comes from `pytest-mock`.
+
+Tests pass explicit dummy `app_id` and `app_key` values when exercising authenticated behavior. The missing-credential test removes both environment variables and verifies that validation fails before `requests.get()` is called. Pagination tests replace `time.sleep()` with a mock: they assert the expected `0.5`-second calls, preserving verification of rate-limiting behavior without delaying the suite.
 
 The current suite was most recently run with:
 
@@ -310,17 +314,15 @@ The current suite was most recently run with:
 py -m pytest -q -p no:cacheprovider
 ```
 
-and completed with 12 passing tests in the inspected environment.
+and completed with 13 passing tests in the inspected environment.
 
-**Known problem:** some API tests mock the HTTP request but do not supply dummy API credentials. Because credentials are checked first, those tests may depend on a local `.env` file even though no real request is sent.
-
-**Planned improvement: To be completed.** Make unit tests independent of local credentials, add warehouse unit tests, and add PostgreSQL integration tests for constraints, rollback, upsert behavior, and rerun counts.
+**Planned improvement: To be completed.** Add warehouse unit tests and PostgreSQL integration tests for constraints, rollback, upsert behavior, and rerun counts.
 
 **Production-scale alternative:** a mature pipeline might also have contract tests against recorded API schemas, data-quality tests, migration tests, and scheduled end-to-end tests. Live external API calls should remain outside the normal unit-test suite.
 
 ### How to explain this in an interview
 
-> I currently use pytest for transformation and API-client behavior, and I mock HTTP calls so tests are fast and do not depend on the live provider. The existing suite is still mostly unit-level. I have identified that database constraints, transaction rollback, and warehouse reruns need PostgreSQL integration tests before adding CI as a meaningful quality gate.
+> I use pytest for transformation and API-client behavior. API tests inject dummy credentials, mock every HTTP boundary, and mock sleep calls, so they do not depend on my local `.env`, the live provider, or real delays. The existing suite is still mostly unit-level. I have identified that database constraints, transaction rollback, and warehouse reruns need PostgreSQL integration tests before adding CI as a meaningful quality gate.
 
 ## 12. Development dependencies
 
@@ -390,6 +392,8 @@ API and database settings are read from environment variables, with `python-dote
 - `DB_PASSWORD`.
 
 Keeping secrets outside source code is the correct principle. `.env` is ignored by Git, while `.env.example` is safe to share as a template.
+
+The API functions also accept explicit credentials. These parameters are mainly useful for testing and controlled callers; leaving them unset preserves environment-backed application behavior. The values are passed only to the HTTP request parameters and are not logged.
 
 **Known problem:** settings logic is duplicated between the API module, connection module, notebook, environment example, and Docker configuration. [`config/settings.py`](../config/settings.py) is empty. Database credentials also have working defaults, which can hide configuration mistakes by connecting to an unintended local database.
 
@@ -506,7 +510,7 @@ Technical debt means a known design or implementation limitation that should be 
 2. Stop tracking runtime logs.
 3. Align README claims with executable behavior and sample sizes.
 4. Add migrations after the model stabilizes.
-5. Add continuous integration only after tests are environment-independent.
+5. Add continuous integration after the planned database integration coverage is stable.
 
 ### Later roadmap
 

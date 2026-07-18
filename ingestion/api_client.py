@@ -10,8 +10,6 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search"
-APP_ID = os.getenv("ADZUNA_APP_ID")
-APP_KEY = os.getenv("ADZUNA_APP_KEY")
 
 TARGET_ROLES = [
     "data analyst",
@@ -25,16 +23,26 @@ TARGET_ROLES = [
 RESULTS_PER_PAGE = 50  # Adzuna max per request
 
 
-def fetch_jobs(role: str, page: int = 1) -> dict:
+def fetch_jobs(
+    role: str,
+    page: int = 1,
+    *,
+    app_id: str | None = None,
+    app_key: str | None = None,
+) -> dict:
     """Fetch one page of job listings for a given role."""
-    if not APP_ID or not APP_KEY:
+    resolved_app_id = app_id if app_id is not None else os.getenv("ADZUNA_APP_ID")
+    resolved_app_key = app_key if app_key is not None else os.getenv("ADZUNA_APP_KEY")
+
+    if not resolved_app_id or not resolved_app_key:
         raise EnvironmentError(
-            "MEMO!!! ADZUNA_APP_ID and ADZUNA_APP_KEY must be set in your .env file."
+            "ADZUNA_APP_ID and ADZUNA_APP_KEY must be set in the environment "
+            "or passed explicitly."
         )
 
     params = {
-        "app_id": APP_ID,
-        "app_key": APP_KEY,
+        "app_id": resolved_app_id,
+        "app_key": resolved_app_key,
         "results_per_page": RESULTS_PER_PAGE,
         "what": role,
         "content-type": "application/json",
@@ -47,13 +55,24 @@ def fetch_jobs(role: str, page: int = 1) -> dict:
     return response.json()
 
 
-def fetch_all_jobs(role: str, max_pages: int = 5) -> list[dict]:
+def fetch_all_jobs(
+    role: str,
+    max_pages: int = 5,
+    *,
+    app_id: str | None = None,
+    app_key: str | None = None,
+) -> list[dict]:
     """Fetch multiple pages of listings for a role, respecting rate limits."""
     all_jobs = []
 
     for page in range(1, max_pages + 1):
         try:
-            data = fetch_jobs(role, page)
+            data = fetch_jobs(
+                role,
+                page,
+                app_id=app_id,
+                app_key=app_key,
+            )
         except requests.HTTPError as e:
             logger.error("HTTP error fetching role=%r page=%d: %s", role, page, e)
             break
@@ -73,13 +92,23 @@ def fetch_all_jobs(role: str, max_pages: int = 5) -> list[dict]:
     return all_jobs
 
 
-def fetch_all_roles(max_pages_per_role: int = 5) -> list[dict]:
+def fetch_all_roles(
+    max_pages_per_role: int = 5,
+    *,
+    app_id: str | None = None,
+    app_key: str | None = None,
+) -> list[dict]:
     """Fetch jobs for all target roles and tag each with its search role."""
     all_jobs = []
 
     for role in TARGET_ROLES:
         logger.info("Fetching role: %s", role)
-        jobs = fetch_all_jobs(role, max_pages=max_pages_per_role)
+        jobs = fetch_all_jobs(
+            role,
+            max_pages=max_pages_per_role,
+            app_id=app_id,
+            app_key=app_key,
+        )
         for job in jobs:
             job["search_role"] = role
         all_jobs.extend(jobs)
