@@ -109,7 +109,7 @@ The optional warehouse flow currently runs separately:
 .
 |-- analytics/                 # Empty SQL placeholders
 |-- app/                       # Currently only a package marker
-|-- config/                    # settings.py is currently empty
+|-- config/                    # Centralized database configuration
 |-- db/
 |   |-- connection.py         # Engine, session factory, create_all
 |   `-- models.py             # Shared Base and JobListing
@@ -130,7 +130,7 @@ The optional warehouse flow currently runs separately:
 
 Python package marker files such as `__init__.py` allow modules to be imported with names such as `db.models` and `warehouse.fact_models`.
 
-**Known problem:** `app/`, `config/settings.py`, and the two analytics SQL files are placeholders rather than implemented layers. They should not be described as working application, centralized configuration, or analytics functionality.
+**Known problem:** `app/` and the two analytics SQL files are placeholders rather than implemented layers. They should not be described as working application or analytics functionality.
 
 ## 5. PostgreSQL and Docker setup
 
@@ -147,15 +147,15 @@ PostgreSQL listens on port `5432` inside the container. A program running on the
 
 Docker solves a reproducibility problem: developers do not need to manually install and configure the same PostgreSQL version. It does not containerize the Python application; only the database service is defined.
 
-**Known problem:** the defaults are inconsistent. Docker exposes host port `5433`, while [`db/connection.py`](../db/connection.py) and [`.env.example`](../.env.example) default to `5432`. The Docker password and the example environment password also differ. The effective value therefore depends on the developer's local `.env` file.
+The standard local configuration is now explicit. Python running directly on the host uses `DB_HOST=localhost` and `DB_PORT=5433`. If Python later runs as another service inside the same Compose network, it must use `DB_HOST=db` and `DB_PORT=5432`, because containers communicate through the service name and internal port rather than the published host port.
 
-**Planned improvement: To be completed.** Align Compose, `.env.example`, Python settings, and documentation around one local connection contract.
+No Docker change was required: the existing `5433:5432` mapping already represents the intended host-to-container boundary. [`.env.example`](../.env.example) and the Python defaults now match the host-execution side of that mapping.
 
 **Production-scale alternative:** a managed PostgreSQL service could handle backups, upgrades, monitoring, and high availability. That would solve operational requirements, not improve the current transformation logic, so it is not necessary merely to make the portfolio stack larger.
 
 ### How to explain this in an interview
 
-> I use Docker Compose to provide a repeatable local PostgreSQL service with persistent storage. The container listens on PostgreSQL's normal internal port and maps it to a host port. I also identified a current configuration mismatch between the Compose mapping and Python defaults, so aligning those values is part of the planned configuration cleanup.
+> I use Docker Compose to provide a repeatable local PostgreSQL service with persistent storage. PostgreSQL listens on port 5432 inside the container and Docker publishes it as port 5433 on the host. My local Python defaults therefore use `localhost:5433`; code running inside the Docker network would use the `db` service on port 5432. Keeping that distinction explicit avoids environment-specific connection errors.
 
 ## 6. SQLAlchemy model registration and shared `Base`
 
@@ -291,7 +291,7 @@ Loader-side lookup checks help in a single process, but database constraints are
 
 ## 11. Testing strategy
 
-The current pytest suite contains 13 tests covering:
+The current pytest suite contains 19 tests covering:
 
 - construction and representation of a `JobListing` Python object;
 - successful transformation and selected missing or malformed fields;
@@ -300,7 +300,9 @@ The current pytest suite contains 13 tests covering:
 - pagination stopping and collection behavior;
 - correct request parameters, including explicitly injected dummy credentials;
 - expected pagination pacing without performing real waits;
-- the missing-credential guard.
+- the missing-credential guard;
+- database configuration defaults and environment overrides;
+- SQLAlchemy URL construction, numeric port conversion, and safe secret representation.
 
 The tests are currently unit-style tests. They do not connect to PostgreSQL and do not verify table creation, database constraints, transactions, warehouse loaders, or end-to-end behavior. `test_job_listing_creation()` verifies Python attribute assignment, not database persistence.
 
@@ -314,7 +316,7 @@ The current suite was most recently run with:
 py -m pytest -q -p no:cacheprovider
 ```
 
-and completed with 13 passing tests in the inspected environment.
+and completed with 19 passing tests in the inspected environment.
 
 **Planned improvement: To be completed.** Add warehouse unit tests and PostgreSQL integration tests for constraints, rollback, upsert behavior, and rerun counts.
 
@@ -395,17 +397,37 @@ Keeping secrets outside source code is the correct principle. `.env` is ignored 
 
 The API functions also accept explicit credentials. These parameters are mainly useful for testing and controlled callers; leaving them unset preserves environment-backed application behavior. The values are passed only to the HTTP request parameters and are not logged.
 
-**Known problem:** settings logic is duplicated between the API module, connection module, notebook, environment example, and Docker configuration. [`config/settings.py`](../config/settings.py) is empty. Database credentials also have working defaults, which can hide configuration mistakes by connecting to an unintended local database.
+Database configuration is centralized in [`config/settings.py`](../config/settings.py). `get_database_config()` reads the current environment and returns a frozen `DatabaseConfig` containing host, numeric port, database name, user, and password. Calling a function rather than defining environment-derived constants means tests can change environment variables and request a fresh configuration without reloading the module.
 
-The database URL is currently assembled with string interpolation. Special characters in usernames or passwords can require URL encoding.
+The database connection flow is:
 
-**Planned improvement: To be completed.** Centralize settings, validate required values at the application boundary, construct the SQLAlchemy URL safely, and align host/container ports.
+```text
+.env / process environment
+        |
+        v
+get_database_config()
+        |
+        v
+immutable DatabaseConfig
+        |
+        v
+SQLAlchemy URL.create()
+        |
+        v
+db.connection engine + SessionLocal
+```
+
+`db.connection` loads `.env`, calls the configuration factory, and creates the process-wide engine. Environment variables therefore need to be set before `db.connection` is imported. The factory itself is not frozen at module import: calling it again reads the current environment, which makes focused configuration tests deterministic.
+
+The SQLAlchemy URL is built with `URL.create()` rather than string interpolation. This correctly handles credentials containing URL-sensitive characters. `DatabaseConfig` is immutable, its password is omitted from its normal representation, and SQLAlchemy masks the password when the URL is converted to a normal string. The connection logger uses only host, port, and database name.
+
+The analysis notebook still creates its own direct pg8000 connection. It is currently a separate analysis client, not part of the application engine/session infrastructure; consolidating notebook connection code is outside this task.
 
 **Production-scale alternative:** deployed systems normally inject secrets through the platform's secret manager or runtime environment instead of storing a `.env` file on the server.
 
 ### How to explain this in an interview
 
-> I keep API and database credentials out of source control and load them from environment variables. The example file documents the required names without including secrets. Configuration is currently spread across several modules, so a planned improvement is one validated settings layer and a single documented Docker connection contract.
+> I keep database settings in environment variables and resolve them through one small configuration factory. It returns an immutable object and uses SQLAlchemy's structured URL builder, so credentials are not manually interpolated or shown in safe representations. The factory reads the environment each time it is called, which keeps tests deterministic, while the application creates one engine after loading its local `.env`. Host execution uses `localhost:5433`; Docker-network execution would use `db:5432`.
 
 ## 15. Logging and error handling
 
@@ -472,6 +494,7 @@ The implemented analysis is in [`notebooks/01_eda.ipynb`](../notebooks/01_eda.ip
 |---|---|---|---|
 | PostgreSQL instead of CSV-only storage | Persistent keys, constraints, SQL queries, and concurrent access | Requires database setup | SQLite for a simpler demo; managed PostgreSQL for deployment |
 | Docker for local PostgreSQL | Reproducible database version and isolated setup | Host/container configuration must be understood | Native installation or managed database |
+| Immutable database configuration factory | One tested source of truth with runtime environment overrides | The process-wide engine still uses the configuration resolved when `db.connection` is imported | Application factory or explicit engine construction for multi-database processes |
 | SQLAlchemy ORM models | Python-visible schema and session/transaction management | ORM loading can encourage row-by-row queries | SQLAlchemy Core or direct bulk SQL |
 | One shared declarative `Base` | Registers source and warehouse tables together | Connection module imports model modules for side effects | Explicit model registry package |
 | Separate API, transform, and load modules | Localizes responsibilities and changes | Transform still depends on the ORM model | Validated data-transfer object between layers |
@@ -497,12 +520,11 @@ Technical debt means a known design or implementation limitation that should be 
 
 ### Next priority
 
-1. Align Docker and environment configuration.
-2. Decide between current-state upserts and historical snapshots.
-3. Represent listings returned by multiple search roles correctly.
-4. Add explicit extraction-run status and partial-failure reporting.
-5. Add database uniqueness constraints for dimension natural keys.
-6. Replace floating-point salary storage with a deliberate financial type and retain salary metadata.
+1. Decide between current-state upserts and historical snapshots.
+2. Represent listings returned by multiple search roles correctly.
+3. Add explicit extraction-run status and partial-failure reporting.
+4. Add database uniqueness constraints for dimension natural keys.
+5. Replace floating-point salary storage with a deliberate financial type and retain salary metadata.
 
 ### Documentation and repository hygiene
 
