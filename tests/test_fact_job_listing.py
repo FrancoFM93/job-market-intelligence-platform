@@ -102,7 +102,17 @@ def test_warehouse_builder_forwards_source_listing_id(mocker):
         salary_max=120000,
     )
     session = mocker.Mock()
-    session.query.return_value.all.return_value = [job]
+
+    existing_facts_query = mocker.Mock()
+    existing_facts_query.all.return_value = []
+
+    jobs_query = mocker.Mock()
+    jobs_query.all.return_value = [job]
+
+    session.query.side_effect = [
+        existing_facts_query,
+        jobs_query,
+    ]
 
     mocker.patch.object(
         warehouse_builder,
@@ -136,3 +146,71 @@ def test_warehouse_builder_forwards_source_listing_id(mocker):
     )
     session.commit.assert_called_once_with()
     session.close.assert_called_once_with()
+
+def test_warehouse_builder_skips_existing_source_listing_id(mocker):
+    job = SimpleNamespace(
+        source_listing_id="adzuna-123",
+        company="Example Company",
+        title="Data Engineer",
+        location_display="Remote",
+        location_area=None,
+        created=datetime(2026, 7, 18),
+        salary_min=90000,
+        salary_max=120000,
+    )
+
+    session = mocker.Mock()
+
+    existing_facts_query = mocker.Mock()
+    existing_facts_query.all.return_value = [("adzuna-123",)]
+
+    jobs_query = mocker.Mock()
+    jobs_query.all.return_value = [job]
+
+    session.query.side_effect = [
+        existing_facts_query,
+        jobs_query,
+    ]
+
+    mocker.patch.object(
+        warehouse_builder,
+        "SessionLocal",
+        return_value=session,
+    )
+
+    mocker.patch.object(
+        warehouse_builder,
+        "load_dim_company",
+        return_value={"Example Company": 1},
+    )
+
+    mock_dim_job = mocker.patch.object(
+        warehouse_builder,
+        "load_dim_job",
+    )
+
+    mock_dim_location = mocker.patch.object(
+        warehouse_builder,
+        "load_dim_location",
+    )
+
+    mock_dim_date = mocker.patch.object(
+        warehouse_builder,
+        "load_dim_date",
+    )
+
+    mock_fact_loader = mocker.patch.object(
+        warehouse_builder,
+        "load_fact_job_listing",
+    )
+
+    warehouse_builder.build_warehouse()
+
+    mock_dim_job.assert_not_called()
+    mock_dim_location.assert_not_called()
+    mock_dim_date.assert_not_called()
+    mock_fact_loader.assert_not_called()
+
+    session.commit.assert_called_once()
+    session.rollback.assert_not_called()
+    session.close.assert_called_once()
