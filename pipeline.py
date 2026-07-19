@@ -34,23 +34,12 @@ def run(max_pages_per_role: int = 5) -> None:
     errors = 0
 
     try:
-        # -------------------------
-        # PRELOAD DIMENSIONS
-        # -------------------------
-        logger.info("Loading dimension caches...")
-
-        company_cache = load_dim_company(session)
-
-        logger.info("Dimension caches loaded")
-
-        # -------------------------
-        # PROCESS ROWS
-        # -------------------------
-        logger.info("Processing records...")
 
         for raw in raw_jobs:
+
             try:
                 job = parse_job(raw)
+
             except Exception as e:
                 logger.warning(
                     "Failed to parse job record (id = %s): %s",
@@ -60,78 +49,16 @@ def run(max_pages_per_role: int = 5) -> None:
                 errors += 1
                 continue
 
-            # Skip invalid
-            if job.id is None:
-                skipped += 1
-                continue
+            exists = session.get(type(job), job.source_listing_id)
 
-            # Optional raw dedup (still fine to keep)
-            exists = session.get(type(job), job.id)
             if exists:
                 skipped += 1
                 continue
 
-            try:
-                # -------------------------
-                # NORMALIZATION
-                # -------------------------
-                company_name = job.company.strip() if job.company else None
+            session.add(job)
 
-                # -------------------------
-                # DIMENSIONS
-                # -------------------------
-                company_key = company_cache.get(company_name)
+            inserted += 1
 
-                if company_key is None:
-                    # fallback safety (should not normally happen)
-                    company_cache = load_dim_company(session)
-                    company_key = company_cache.get(company_name)
-
-                job_key = load_dim_job(session, job.__dict__)
-
-                location_key = load_dim_location(
-                    session,
-                    job.location_display,
-                    job.location_area
-                )
-
-                date_key = load_dim_date(
-                    session,
-                    job.created_at.date()
-                )
-
-                # -------------------------
-                # FACT TABLE
-                # -------------------------
-                load_fact_job_listing(
-                    session,
-                    company_key=company_key,
-                    job_key=job_key,
-                    location_key=location_key,
-                    date_key=date_key,
-                    salary_min=job.salary_min,
-                    salary_max=job.salary_max
-                )
-
-                # -------------------------
-                # OPTIONAL RAW STORAGE
-                # -------------------------
-                session.add(job)
-
-                inserted += 1
-
-            except Exception as e:
-                logger.exception(
-                    "Failed processing job id=%s: %s",
-                    getattr(job, "id", None),
-                    e
-                )
-                errors += 1
-                continue
-
-        # -------------------------
-        # COMMIT BATCH
-        # -------------------------
         session.commit()
 
         logger.info(
@@ -142,8 +69,14 @@ def run(max_pages_per_role: int = 5) -> None:
         )
 
     except Exception as e:
+
         session.rollback()
-        logger.exception("Pipeline failed: %s", e)
+
+        logger.exception(
+            "Pipeline failed during database load: %s",
+            e
+        )
+
         raise
 
     finally:
@@ -151,5 +84,5 @@ def run(max_pages_per_role: int = 5) -> None:
 
 
 if __name__ == "__main__":
-    setup_logging(level="INFO")
+    setup_logging(level = "INFO")
     run()
