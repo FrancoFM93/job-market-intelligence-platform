@@ -53,7 +53,7 @@ def run(max_pages_per_role: int = 5) -> None:
                 job = parse_job(raw)
             except Exception as e:
                 logger.warning(
-                    "Failed to parse job record (id=%s): %s",
+                    "Failed to parse job record (id = %s): %s",
                     raw.get("id"),
                     e
                 )
