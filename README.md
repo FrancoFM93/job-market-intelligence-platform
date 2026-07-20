@@ -37,28 +37,72 @@ The project focuses on engineering practices as much as data analysis, emphasizi
 
 ## Architecture
 
-```text
-                        Adzuna API
-                             │
-                             ▼
-                  Validation Layer
-                             │
-                             ▼
-                 Transformation Layer
-                             │
-                             ▼
-                PostgreSQL (Operational)
-                             │
-                             ▼
-              Dimensional Warehouse
-                             │
-                             ▼
-             Notebook / Analytical Queries
+```mermaid
+flowchart TD
+    API[Adzuna API] --> ING[API Ingestion]
+    ING --> VAL[Raw Data Validation]
+    VAL -->|Valid record| TR[Transformation]
+    VAL -->|Invalid record| REJ[Rejected and Logged]
+    TR --> OP[(PostgreSQL<br/>Operational Database)]
+    OP --> WH[Warehouse Build]
+    WH --> DW[(Dimensional Warehouse)]
+    DW --> AN[Analytics and Notebooks]
 ```
 
-The ingestion pipeline validates every raw API record before transformation. Invalid records are rejected and logged, while valid records continue through the pipeline.
+Raw API records are validated before transformation and persistence. Invalid records are rejected and logged without stopping the ingestion of valid records.
 
-Warehouse construction is intentionally executed as a separate process.
+The operational database is the source of truth, while warehouse construction runs as a separate process.
+
+---
+
+## Warehouse Model
+
+```mermaid
+erDiagram
+    DIM_COMPANY ||--o{ FACT_JOB_LISTING : classifies
+    DIM_JOB ||--o{ FACT_JOB_LISTING : describes
+    DIM_LOCATION ||--o{ FACT_JOB_LISTING : locates
+    DIM_DATE ||--o{ FACT_JOB_LISTING : dates
+
+    DIM_COMPANY {
+        int company_key PK
+        string company_name
+    }
+
+    DIM_JOB {
+        int job_key PK
+        string title
+    }
+
+    DIM_LOCATION {
+        int location_key PK
+        string location_display
+        string location_area
+    }
+
+    DIM_DATE {
+        int date_key PK
+        date full_date
+        int year
+        int month
+        int day
+        string weekday
+        string month_name
+    }
+
+    FACT_JOB_LISTING {
+        int fact_id PK
+        int company_key FK
+        int job_key FK
+        int location_key FK
+        int date_key FK
+        float salary_min
+        float salary_max
+        string source_listing_id
+    }
+```
+
+The warehouse uses a star schema centered on one fact row per unique Adzuna job listing.
 
 ---
 
@@ -224,13 +268,11 @@ Current status:
 
 # Documentation
 
-The repository includes engineering documentation beyond the README.
-
 | Document | Purpose |
-|-----------|---------|
-| Engineering Guide | Development workflow and repository usage |
-| Engineering Walkthrough | Architecture, engineering decisions, and interview preparation |
-| Architecture Decision Records | Important technical decisions made throughout the project |
+|----------|---------|
+| [Engineering Guide](docs/engineering-guide.md) | Development workflow, commands, and repository usage |
+| [Engineering Walkthrough](docs/engineering-walkthrough.md) | Architecture and engineering decisions |
+| [Architecture Decision Records](docs/decisions/) | Important technical decisions |
 
 ---
 
