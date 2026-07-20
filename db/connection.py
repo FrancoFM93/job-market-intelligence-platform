@@ -1,31 +1,42 @@
 import logging
-import os
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from config.settings import get_database_config
 from db.models import Base
-from warehouse.warehouse_models import DimCompany
+from warehouse.fact_models import FactJobListing
+from warehouse.warehouse_models import (
+    DimCompany,
+    DimDate,
+    DimJob,
+    DimLocation,
+)
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5433")
-DB_NAME = os.getenv("DB_NAME", "jobmarket")
-DB_USER = os.getenv("DB_USER", "jobmarket")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "jobmarket")
+database_config = get_database_config()
 
-DATABASE_URL = f"postgresql+pg8000://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+engine = create_engine(
+    database_config.database_url,
+    echo=False,
+)
 
-engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 
 
 def init_db() -> None:
-    """Create all tables if they don't exist."""
-    logger.debug("Running init_db against %s:%s/%s", DB_HOST, DB_PORT, DB_NAME)
+    """Create all database tables if they do not exist."""
+    logger.debug(
+        "Running init_db against %s:%s/%s",
+        database_config.host,
+        database_config.port,
+        database_config.name,
+    )
+
     Base.metadata.create_all(engine)
+
     logger.info("Database tables verified / created.")

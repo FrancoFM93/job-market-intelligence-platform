@@ -1,11 +1,19 @@
 """
 Main ingestion pipeline.
+
+Fetches job listings from the Adzuna API and stores new source records
+in the operational PostgreSQL table.
+
+The dimensional warehouse is built separately with:
+
+    py -m warehouse.build_warehouse
 """
+
 import logging
 
-from logger import setup_logging
-from db.connection import init_db, SessionLocal
+from db.connection import SessionLocal, init_db
 from ingestion.api_client import fetch_all_roles
+from logger import setup_logging
 from processing.transform import parse_job
 
 logger = logging.getLogger(__name__)
@@ -18,11 +26,17 @@ def run(max_pages_per_role: int = 5) -> None:
     init_db()
 
     logger.info("Fetching jobs from Adzuna API...")
-    raw_jobs = fetch_all_roles(max_pages_per_role=max_pages_per_role)
-    logger.info("Total records fetched from API: %d", len(raw_jobs))
+    raw_jobs = fetch_all_roles(
+        max_pages_per_role=max_pages_per_role,
+    )
 
-    logger.info("Loading into database...")
+    logger.info(
+        "Total records fetched from API: %d",
+        len(raw_jobs),
+    )
+
     session = SessionLocal()
+
     inserted = 0
     skipped = 0
     errors = 0
@@ -31,18 +45,22 @@ def run(max_pages_per_role: int = 5) -> None:
         for raw in raw_jobs:
             try:
                 job = parse_job(raw)
-            except Exception as e:
-                logger.warning("Failed to parse job record (id=%s): %s", raw.get("id"), e)
+
+            except Exception as error:
+                logger.warning(
+                    "Failed to parse job record (id=%s): %s",
+                    raw.get("id"),
+                    error,
+                )
                 errors += 1
                 continue
 
-            if job.id is None:
-                logger.debug("Skipping record with null id: %s", raw.get("title"))
-                skipped += 1
-                continue
+            existing_job = session.get(
+                type(job),
+                job.source_listing_id,
+            )
 
-            exists = session.get(type(job), job.id)
-            if exists:
+            if existing_job:
                 skipped += 1
                 continue
 
@@ -50,12 +68,22 @@ def run(max_pages_per_role: int = 5) -> None:
             inserted += 1
 
         session.commit()
-        logger.info("Pipeline complete — inserted: %d | skipped: %d | errors: %d",
-                    inserted, skipped, errors)
 
-    except Exception as e:
+        logger.info(
+            "Pipeline complete - inserted: %d | skipped: %d | errors: %d",
+            inserted,
+            skipped,
+            errors,
+        )
+
+    except Exception as error:
         session.rollback()
-        logger.exception("Pipeline failed during database load: %s", e)
+
+        logger.exception(
+            "Pipeline failed during database load: %s",
+            error,
+        )
+
         raise
 
     finally:

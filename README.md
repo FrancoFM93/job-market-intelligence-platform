@@ -128,19 +128,13 @@ cp .env.example .env
 Edit `.env` with your values:
 
 ```env
-<<<<<<< Updated upstream
-# Adzuna API — https://developer.adzuna.com
-ADZUNA_APP_ID=app_id
-ADZUNA_APP_KEY=app_key
-=======
-# Adzuna API
-ADZUNA_APP_ID=your_app_id
-ADZUNA_APP_KEY=your_app_key
->>>>>>> Stashed changes
+# Adzuna API Credentials
+ADZUNA_APP_ID=your_app_id_here
+ADZUNA_APP_KEY=your_app_key_here
 
-# PostgreSQL
+# PostgreSQL Database
 DB_HOST=localhost
-DB_PORT=5433 *You have to double check in your machine
+DB_PORT=5433
 DB_NAME=jobmarket
 DB_USER=jobmarket
 DB_PASSWORD=jobmarket

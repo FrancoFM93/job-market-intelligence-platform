@@ -4,6 +4,10 @@ from db.models import JobListing
 
 def parse_job(raw: dict) -> JobListing:
     """Convert a raw Adzuna API result dict into a JobListing model instance."""
+    source_listing_id = raw.get("id")
+    if source_listing_id is None or not str(source_listing_id).strip():
+        raise ValueError("Job listing is missing its required Adzuna source ID.")
+
     location = raw.get("location", {})
     location_area = None
     areas = location.get("area", [])
@@ -23,7 +27,7 @@ def parse_job(raw: dict) -> JobListing:
             pass
 
     return JobListing(
-        id=raw.get("id"),
+        source_listing_id=str(source_listing_id),
         title=raw.get("title"),
         company=raw.get("company", {}).get("display_name"),
         location_display=location.get("display_name"),

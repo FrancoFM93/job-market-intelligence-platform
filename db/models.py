@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Float, DateTime, Text, Integer, UniqueConstraint
+    Column, String, Float, DateTime, Text
 )
 from sqlalchemy.orm import DeclarativeBase
 
@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
 class JobListing(Base):
     __tablename__ = "job_listings"
 
-    id = Column(String, primary_key=True)          # Adzuna's own ID
+    source_listing_id = Column(String, primary_key=True)  # Adzuna's own ID
     title = Column(String, nullable=False)
     company = Column(String)
     location_display = Column(String)
@@ -29,9 +29,8 @@ class JobListing(Base):
     created = Column(DateTime)                      # Adzuna's posted date
     fetched_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (
-        UniqueConstraint("id", name="uq_job_id"),
-    )
-
     def __repr__(self):
-        return f"<JobListing {self.id}: {self.title} @ {self.company}>"
+        return (
+            f"<JobListing {self.source_listing_id}: "
+            f"{self.title} @ {self.company}>"
+        )
