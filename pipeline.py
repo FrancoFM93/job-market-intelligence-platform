@@ -1,20 +1,22 @@
 """
 Main ingestion pipeline.
 
-Fetches job listings from the Adzuna API and stores new source records
-in the operational PostgreSQL table.
+Fetches job listings from the Adzuna API, validates the source records,
+and stores valid new listings in the operational PostgreSQL table.
 
 The dimensional warehouse is built separately with:
 
     py -m warehouse.build_warehouse
 """
 
+from collections import Counter
 import logging
 
 from db.connection import SessionLocal, init_db
 from ingestion.api_client import fetch_all_roles
 from logger import setup_logging
 from processing.transform import parse_job
+from processing.validation import validate_raw_job
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +41,26 @@ def run(max_pages_per_role: int = 5) -> None:
 
     inserted = 0
     skipped = 0
+    rejected = 0
     errors = 0
+
+    rejection_reasons: Counter[str] = Counter()
 
     try:
         for raw in raw_jobs:
+            validation_result = validate_raw_job(raw)
+
+            if not validation_result.is_valid:
+                rejected += 1
+                rejection_reasons.update(validation_result.errors)
+
+                logger.warning(
+                    "Rejected job record (id=%s): %s",
+                    raw.get("id"),
+                    "; ".join(validation_result.errors),
+                )
+                continue
+
             try:
                 job = parse_job(raw)
 
@@ -70,11 +88,23 @@ def run(max_pages_per_role: int = 5) -> None:
         session.commit()
 
         logger.info(
-            "Pipeline complete - inserted: %d | skipped: %d | errors: %d",
+            "Pipeline complete - inserted: %d | skipped: %d | "
+            "rejected: %d | errors: %d",
             inserted,
             skipped,
+            rejected,
             errors,
         )
+
+        if rejection_reasons:
+            logger.info("Validation rejection summary:")
+
+            for reason, count in rejection_reasons.most_common():
+                logger.info(
+                    "  %s: %d",
+                    reason,
+                    count,
+                )
 
     except Exception as error:
         session.rollback()
